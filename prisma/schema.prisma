@@ -1,0 +1,124 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  walletAddress String @unique
+  role      Role     @default(VIEWER)
+  createdAt DateTime @default(now())
+  agents    Agent[]
+}
+
+model Agent {
+  id          String      @id @default(cuid())
+  name        String
+  description String?
+  ownerId     String
+  owner       User        @relation(fields: [ownerId], references: [id])
+  status      AgentStatus @default(ACTIVE)
+  rules       Json        // Array of RuleConfig
+  triggers    Json        // Array of TriggerConfig
+  actions     Json        // Array of ActionConfig
+  pluginId    String?     // optional strategy plugin
+  simulate    Boolean     @default(false)
+  lastRunAt   DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  executions  AgentExecution[]
+}
+
+model AgentExecution {
+  id        String          @id @default(cuid())
+  agentId   String
+  agent     Agent           @relation(fields: [agentId], references: [id])
+  status    ExecutionStatus
+  simulated Boolean         @default(false)
+  result    Json?
+  error     String?
+  triggeredBy String?
+  createdAt DateTime        @default(now())
+}
+
+model Transaction {
+  id          String            @id @default(cuid())
+  hash        String?           @unique
+  type        TransactionType
+  status      TransactionStatus @default(PENDING)
+  fromAddress String
+  toAddress   String?
+  amount      Decimal?
+  asset       String?
+  contractId  String?
+  functionName String?
+  params      Json?
+  ledger      Int?
+  fee         Int?
+  simulated   Boolean           @default(false)
+  agentId     String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+}
+
+model TreasuryAccount {
+  id            String   @id @default(cuid())
+  walletAddress String   @unique
+  label         String?
+  balances      Json     // { asset: string, balance: string }[]
+  sequence      String?
+  lastSyncedAt  DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  events        BlockchainEvent[]
+}
+
+model BlockchainEvent {
+  id         String   @id @default(cuid())
+  type       String
+  contractId String?
+  ledger     Int
+  txHash     String?
+  payload    Json
+  processed  Boolean  @default(false)
+  accountId  String?
+  account    TreasuryAccount? @relation(fields: [accountId], references: [id])
+  createdAt  DateTime @default(now())
+}
+
+enum Role {
+  ADMIN
+  OPERATOR
+  VIEWER
+}
+
+enum AgentStatus {
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum ExecutionStatus {
+  SUCCESS
+  FAILED
+  SKIPPED
+  SIMULATED
+}
+
+enum TransactionType {
+  PAYMENT
+  CONTRACT_CALL
+  CONTRACT_DEPLOY
+  SWAP
+}
+
+enum TransactionStatus {
+  PENDING
+  SUBMITTED
+  CONFIRMED
+  FAILED
+}
